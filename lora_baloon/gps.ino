@@ -119,15 +119,14 @@ void read_gps_data(){
   // approximately every 1 second or so, print out the current stats
   if (millis() - timer > 1000) { 
     timer = millis(); // reset the timer
-    
-    print_gps();
+  
+    if(DEBUG ==1){ print_gps(); }
 
     convert_gps_rtc();
     read_coordinates();
+    
+    sample_ina219();    
 
-    read_bme280();
-    // read_current();
-    // read_voltage();
     build_message();
     send_thru_lora(temp);
   }  
@@ -159,16 +158,18 @@ void read_coordinates(){
     gsat = ((int)GPS.satellites);             dtostrf(gangle, 4, DECIMAL, gps_angle);
     gangle = (GPS.angle);
 
-    Serial.print("Location: ");
-    Serial.print(gps_latitude); 
-    Serial.print(", "); 
-    Serial.println(gps_longitude); 
-    Serial.print("Speed (knots): "); Serial.println(gspeed);
-    Serial.print("Angle: "); Serial.println(gangle);
-    Serial.print("Altitude: "); Serial.println(galtitude);
-    Serial.print("Satellites: "); Serial.println(gsat);
-    Serial.println("----------------------------------");   
-    // read_bme280();
+    if(DEBUG == 1){
+      Serial.print("Location: ");
+      Serial.print(gps_latitude); 
+      Serial.print(", "); 
+      Serial.println(gps_longitude); 
+      Serial.print("Speed (knots): "); Serial.println(gspeed);
+      Serial.print("Angle: "); Serial.println(gangle);
+      Serial.print("Altitude: "); Serial.println(galtitude);
+      Serial.print("Satellites: "); Serial.println(gsat);
+      Serial.println("----------------------------------");   
+      // read_bme280();
+    }
   }
 }
 
@@ -199,10 +200,9 @@ void convert_gps_rtc(){	//convert timestamp tp YYMMDDSS format
 		ts += '0' + String(GPS.seconds);
 	}else{ ts += String(GPS.seconds); }
 
-	Serial.print("Timestamp: ");	Serial.print(ts);	Serial.println("");
+  if(DEBUG==1){ Serial.print("Timestamp: ");  Serial.print(ts); Serial.println(""); };
+	
 	ts.toCharArray(gpstimestamp, 13);
-
-  	//if (DEBUG == 1) {Serial.print("Timestamp: ");} if (DEBUG == 1) {Serial.println(gpstimestamp);}	
 }
 
 float conv_coords(float in_coords){

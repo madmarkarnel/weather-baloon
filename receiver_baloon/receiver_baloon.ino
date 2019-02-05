@@ -11,6 +11,7 @@
 // Change to 434.0 or other frequency, must match RX's freq!
 #define RF95_FREQ 433.0
 #define DEBUG 1
+#define LED 14    // Blinky on receipt
 
 // Singleton instance of the radio driver
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
@@ -24,11 +25,11 @@ char recieved[250];
 File myFile;
 const int chipSelect = BUILTIN_SDCARD;  //for teensy 3.5
 
-// Blinky on receipt
-#define LED 14
-
 char l_temp[10] = "";     
 char Ctimestamp[13] = ""; 
+char rssiVal[7] = "";
+
+int timestart = millis();
 
 void init_sd(){
 
@@ -46,18 +47,34 @@ void init_sd(){
 }
 
 void setup(){
-
   Serial.begin(115200);
 
-  Wire.begin();
+  Wire.begin();   //initialize i2c connection
   rtc.begin();    //initialize rtc
-
   init_lora();
   init_sd();
+
+  // Serial.println("Debug MOde! Please enter command");
+  /*
+  while((millis() - timestart < 10000)){
+    if(Serial.available()){     
+      
+      getAtcommand();
+    } 
+    // else{read_lora_data();}
+  }
+  */
+}
+
+void loop(){
+  //run code forever
+  read_lora_data();
+  // getAtcommand();
 }
 
 void init_lora(){
   pinMode(LED, OUTPUT);     
+
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
  
@@ -91,27 +108,12 @@ void init_lora(){
 
 }
 
-void loop(){
-  
-  int timestart = millis();
-  while((millis() - timestart < 3000)){
-    if(Serial.available()){     
-      Serial.println("Debug MOde! Please enter command");
-      getAtcommand();
-    } 
-    // else{read_lora_data();}
-  }
-  read_lora_data();
-  // getAtcommand();
-}
-
 void read_lora_data(){
   if (rf95.available())
   {
     // Should be a message for us now   
 
-    if (rf95.recv(buf, &len))
-    {
+    if (rf95.recv(buf, &len)){
       digitalWrite(LED, HIGH);
 
       int i = 0;
@@ -122,9 +124,10 @@ void read_lora_data(){
       recieved[i] = (uint8_t)'\0';
       Serial.println(recieved);
 
+      readTimeStamp();
       logData();
 
-       Serial.print("RSSI: ");
+      Serial.print("RSSI: ");
       Serial.println(rf95.lastRssi(), DEC);
 
       /*
@@ -136,8 +139,7 @@ void read_lora_data(){
       digitalWrite(LED, LOW);
       */
     }
-    else
-    {
+    else{
       Serial.println("Receive failed");
     }
   }
@@ -152,7 +154,9 @@ void logData(){
 
   // if the file is available, write to it:
   if (dataFile) {
-    dataFile.println(recieved);
+    dataFile.print(recieved);
+    dataFile.print("*");
+    dataFile.println(Ctimestamp);
     dataFile.close();
   }  
   // if the file isn't open, pop up an error:

@@ -6,12 +6,19 @@
 #include "BlueDot_BME280.h"
 #include <Adafruit_INA219.h>
 
+/* for feather m0  
+#define RFM95_CS 8
+#define RFM95_RST 4
+#define RFM95_INT 3
+*/
+
+// for teensy 3.2
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
 
-#define GPSPORT Serial3  //gps comms
-#define DEBUG 1         //0 or 1-turn on debug mode
+#define GPSPORT Serial3   //gps comms
+#define DEBUG 0           //0 or 1-turn on debug mode
 #define LED 17
 #define DATALEN 200       //max size of dummy length
 #define DECIMAL 2
@@ -28,9 +35,12 @@ Adafruit_INA219 ina219;
 Adafruit_GPS GPS(&GPSPORT);
 Adafruit_Si7021 sensor = Adafruit_Si7021();
 
+//constants
+char station_name[6] = "MADTA";
+char fixTempHum[19] = "*TP:20.43*HM:70.20";
+
 //---------------------------------------------------------
 BlueDot_BME280 bme280 = BlueDot_BME280();
-char station_name[6] = "MADTA";
 char bme_tp[6] = "";
 char bme_pr[8] = "";
 char bme_al[6] = "";
@@ -46,6 +56,7 @@ char gps_speed[6] = "";
 char gps_angle[6] = "";
 char l_loadvoltage[10] = "";      
 char l_current_mA[10] = "";   
+char l_power_mW[12] = "";
 
 
 void setup(){
@@ -58,18 +69,21 @@ void setup(){
   Serial.println("Baloon Testing!");
 
   init_gps();   //initialize gps settings
-  init_bme280();
   init_lora();
+  init_in219();
 
   // init_si7021();
-  init_in219();
+  // init_bme280();
 }
 
 
 void loop(){
   // send_thru_lora(dummy_data);
+  // read_voltage();
+  // delay(1000);
   read_gps_data();
 }
+
 
 void init_lora(){
   pinMode(RFM95_RST, OUTPUT);
@@ -111,9 +125,7 @@ void send_thru_lora(char* radiopacket){
   // char temp[DATALEN];   //lora
   // uint8_t payload[RH_RF95_MAX_MESSAGE_LEN]; //store the data
 
-  Serial.println("Sending to rf95_server");
   // Send a message to rf95_server
-
   //do not stack
   for(i=0; i<200; i++){
     payload[i] = (uint8_t)'0';
@@ -131,7 +143,111 @@ void send_thru_lora(char* radiopacket){
   Serial.println("sending payload!");
   rf95.send(payload, length);
 
-  delay(100);  
+  delay(50);  
+}
+
+void build_message(){
+  for(int i=0; i<DATALEN; i++) temp[i] = 0;
+  strncpy(temp,">>", 2);  strncat(temp, station_name, sizeof(station_name));
+  strncat(temp, fixTempHum, sizeof(fixTempHum));
+  // strncat(temp, "*TP:", 4);     strncat(temp, bme_tp, sizeof(bme_tp));  
+  // strncat(temp, "*RH:", 4);     strncat(temp, bme_rh, sizeof(bme_rh));
+  // strncat(temp, "*PR:", 4);     strncat(temp, bme_pr, sizeof(bme_pr));
+  // strncat(temp, "*AL:", 4);     strncat(temp, bme_al, sizeof(bme_al));  
+  strncat(temp, "*ALG:", 5);    strncat(temp, gps_altitude, sizeof(gps_altitude));
+  strncat(temp, "*SP:", 4);     strncat(temp, gps_speed, sizeof(gps_speed));
+  strncat(temp, "*LAT:", 5);    strncat(temp, gps_latitude, sizeof(gps_latitude));
+  strncat(temp, "*LON:", 5);    strncat(temp, gps_longitude, sizeof(gps_longitude));
+  strncat(temp, "*BV:", 4);     strncat(temp, l_loadvoltage, sizeof(l_loadvoltage));
+  strncat(temp, "*BI:", 4);     strncat(temp, l_current_mA, sizeof(l_current_mA));
+  strncat(temp, "*BW:", 4);     strncat(temp, l_power_mW, sizeof(l_power_mW));
+  strncat(temp, "*", 1);        strncat(temp, gpstimestamp, sizeof(gpstimestamp));
+  strncat(temp, "<<", 2);
+
+  Serial.println(temp);
+  delay(10);
+}
+
+
+void sample_ina219(){
+  float shuntvoltage = 0;
+  float busvoltage = 0;
+  float current_mA = 0;
+  float loadvoltage = 0;
+  float power_mW = 0;
+
+  shuntvoltage = ina219.getShuntVoltage_mV();
+  busvoltage = ina219.getBusVoltage_V();
+  current_mA = ina219.getCurrent_mA();                dtostrf(current_mA, 5, 2, l_current_mA);
+  power_mW = ina219.getPower_mW();                    dtostrf(power_mW, 5, 2, l_power_mW);
+  loadvoltage = busvoltage + (shuntvoltage / 1000);   dtostrf(loadvoltage, 3, 2, l_loadvoltage);
+
+  if(DEBUG == 1){
+  Serial.print("Bus Voltage:   "); Serial.print(busvoltage); Serial.println(" V");
+  Serial.print("Shunt Voltage: "); Serial.print(shuntvoltage); Serial.println(" mV");
+  Serial.print("Load Voltage:  "); Serial.print(loadvoltage); Serial.println(" V");
+  Serial.print("Current:       "); Serial.print(current_mA); Serial.println(" mA");
+  Serial.print("Power:         "); Serial.print(power_mW); Serial.println(" mW");  
+  }
+}
+
+/* 
+  Function: init_in219()
+
+  - initialize ina219 module
+*/
+
+void init_in219(){
+  uint32_t currentFrequency;
+  ina219.begin();
+  ina219.setCalibration_16V_400mA();  
+}
+
+void init_si7021(){
+  if (!sensor.begin()) {
+    Serial.println("Did not find Si7021 sensor!");
+    while (true);
+  }  
+}
+
+void sample_si7021(){
+  Serial.print("Humidity:    "); Serial.print(sensor.readHumidity(), 2);
+  Serial.print("\tTemperature: "); Serial.println(sensor.readTemperature(), 2);
+}
+
+
+void read_bme280(){
+  float tp, pr, rh, al = 0;
+
+  tp = bme280.readTempC();             dtostrf(tp, 3, DECIMAL, bme_tp);
+  pr = bme280.readPressure();          dtostrf(pr, 4, DECIMAL, bme_pr);
+  rh = bme280.readHumidity();          dtostrf(rh, 3, DECIMAL, bme_rh);
+  al = bme280.readAltitudeMeter();     dtostrf(al, 4, DECIMAL, bme_al);
+
+ // Serial.print(F("Duration in Seconds:\t\t"));
+ // Serial.println(float(millis())/1000);
+
+ Serial.print(F("Temperature in Celsius:\t\t")); 
+ Serial.println(bme280.readTempC());
+
+ Serial.print(F("Temperature in Fahrenheit:\t")); 
+ Serial.println(bme280.readTempF());
+ 
+ Serial.print(F("Humidity in %:\t\t\t")); 
+ Serial.println(bme280.readHumidity());
+
+ Serial.print(F("Pressure in hPa:\t\t")); 
+ Serial.println(bme280.readPressure());
+
+ Serial.print(F("Altitude in Meters:\t\t")); 
+ Serial.println(bme280.readAltitudeMeter());
+
+ Serial.print(F("Altitude in Feet:\t\t")); 
+ Serial.println(bme280.readAltitudeFeet());
+ 
+ Serial.println();
+
+ // delay(1000);     
 }
 
 void init_bme280(){
@@ -302,118 +418,4 @@ void init_bme280(){
   Serial.println();
   Serial.println();
 
-}
-
-void read_bme280(){
-  float tp, pr, rh, al = 0;
-
-  tp = bme280.readTempC();             dtostrf(tp, 3, DECIMAL, bme_tp);
-  pr = bme280.readPressure();          dtostrf(pr, 4, DECIMAL, bme_pr);
-  rh = bme280.readHumidity();          dtostrf(rh, 3, DECIMAL, bme_rh);
-  al = bme280.readAltitudeMeter();     dtostrf(al, 4, DECIMAL, bme_al);
-
- // Serial.print(F("Duration in Seconds:\t\t"));
- // Serial.println(float(millis())/1000);
-
- Serial.print(F("Temperature in Celsius:\t\t")); 
- Serial.println(bme280.readTempC());
-
- Serial.print(F("Temperature in Fahrenheit:\t")); 
- Serial.println(bme280.readTempF());
- 
- Serial.print(F("Humidity in %:\t\t\t")); 
- Serial.println(bme280.readHumidity());
-
- Serial.print(F("Pressure in hPa:\t\t")); 
- Serial.println(bme280.readPressure());
-
- Serial.print(F("Altitude in Meters:\t\t")); 
- Serial.println(bme280.readAltitudeMeter());
-
- Serial.print(F("Altitude in Feet:\t\t")); 
- Serial.println(bme280.readAltitudeFeet());
- 
- Serial.println();
-
- // delay(1000);     
-}
-
-void build_message(){
-  for(int i=0; i<DATALEN; i++) temp[i] = 0;
-  strncpy(temp,">>", 2);  strncat(temp, station_name, sizeof(station_name));
-  strncat(temp, "*TP:", 4);     strncat(temp, bme_tp, sizeof(bme_tp));  
-  strncat(temp, "*RH:", 4);     strncat(temp, bme_rh, sizeof(bme_rh));
-  strncat(temp, "*PR:", 4);     strncat(temp, bme_pr, sizeof(bme_pr));
-  strncat(temp, "*AL:", 4);     strncat(temp, bme_al, sizeof(bme_al));  
-  strncat(temp, "*ALG:", 5);    strncat(temp, gps_altitude, sizeof(gps_altitude));
-  strncat(temp, "*SP:", 4);     strncat(temp, gps_speed, sizeof(gps_speed));
-  strncat(temp, "*LAT:", 5);    strncat(temp, gps_latitude, sizeof(gps_latitude));
-  strncat(temp, "*LON:", 5);    strncat(temp, gps_longitude, sizeof(gps_longitude));
-  strncat(temp, "*BV:", 4);     strncat(temp, l_loadvoltage, sizeof(l_loadvoltage));
-  strncat(temp, "*BI:", 4);     strncat(temp, l_current_mA, sizeof(l_current_mA));
-  strncat(temp, "*", 1);        strncat(temp, gpstimestamp, sizeof(gpstimestamp));
-  strncat(temp, "<<", 2);
-
-  Serial.println(temp);
-  delay(10);
-}
-
-//Function: read_current()
-// Reads the current draw from the onboard ina219.
-void read_current(){
-  
-  float current_mA = 0;
-  current_mA = ina219.getCurrent_mA();
-  // Serial.print("Current:       "); Serial.print(current_mA); Serial.println(" mA");
-
-  dtostrf(current_mA, 5, 2, l_current_mA);
-  if (DEBUG == 1) {Serial.print("Current Draw: ");}
-  if (DEBUG == 1) {Serial.println(l_current_mA);}
-}
-
-/* 
-  Function: read_voltage()
-
-    Reads the *Bus Voltage*, *Shunt Voltage*, *Load Voltage* from the onboard ina219.
-*/
-void read_voltage(){
-
-  float shuntvoltage = 0;
-  float busvoltage = 0;
-  float loadvoltage = 0;
-
-  shuntvoltage = ina219.getShuntVoltage_mV();
-  busvoltage = ina219.getBusVoltage_V();
-  loadvoltage = busvoltage + (shuntvoltage / 1000);
-  
-  // Serial.print("Bus Voltage:   "); Serial.print(busvoltage); Serial.println(" V");
-  // Serial.print("Shunt Voltage: "); Serial.print(shuntvoltage); Serial.println(" mV");
-  // Serial.print("Load Voltage:  "); Serial.print(loadvoltage); Serial.println(" V");
-
-  dtostrf(loadvoltage, 3, 2, l_loadvoltage);
-  if (DEBUG == 1) {Serial.print("Load Voltage: ");}
-  if (DEBUG == 1) {Serial.println(l_loadvoltage);}  
-}
-
-/* 
-  Function: init_in219()
-
-  initialize ina219 module
-*/
-
-void init_in219(){
-  uint32_t currentFrequency;
-  ina219.setCalibration_16V_400mA();  
-}
-
-void init_si7021(){
-  if (!sensor.begin()) {
-    Serial.println("Did not find Si7021 sensor!");
-    while (true);
-  }  
-}
-
-void sample_si7021(){
-  Serial.print("Humidity:    "); Serial.print(sensor.readHumidity(), 2);
-  Serial.print("\tTemperature: "); Serial.println(sensor.readTemperature(), 2);
 }

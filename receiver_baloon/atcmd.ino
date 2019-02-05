@@ -6,29 +6,6 @@
 
 bool ate = false;
 
-void getArguments(String at_cmd, String *arguments){
-
-  int i_from = 0, i_to = 0, i_arg = 0;
-  bool f_exit = true;
-  String sub;
-
-  // find '=' sign
-  i_from = at_cmd.indexOf('=');
-
-  do{
-    i_to = at_cmd.indexOf(',',i_from+1);
-    if (i_to < 0){
-    }
-    else sub = at_cmd.substring(i_from+1,i_to);
-
-    arguments[i_arg] = sub;
-    i_from = i_to;
-    i_arg += 1;
-
-  } while(f_exit);
-
-}
-
 void getAtcommand(){
 
   String serial_line, command;
@@ -68,8 +45,8 @@ void getAtcommand(){
     }  
     else if (command == "AT+READTEMP"){
       // Serial.print("RTC Temperature: ");
-      readTemp();
-    }       
+      readTemp();  
+  	}       
     else{
       Serial.println(ERRORSTR);
     }
@@ -81,7 +58,7 @@ void setupTime() {
 	int MM = 0, DD = 0, YY = 0, hh = 0, mm = 0, ss = 0, dd = 0;
 
 	Serial.println(F("\nSet time and date in this format: YY,MM,DD,hh,mm,ss,dd[0-6]Mon-Sun"));
-	delay (2000);
+	delay (50);
 	//2018,11,15,11,32,30,2
 	while (!Serial.available()) {}
 	if (Serial.available()) {
@@ -93,7 +70,7 @@ void setupTime() {
 		ss = Serial.parseInt();
 		dd = Serial.parseInt();
 	}
-
+	delay(10);
 	adjustDate(YY, MM, DD, hh, mm, ss, dd);
 	// Serial.print(F("Time now is: "));
 	// Serial.println(Ctimestamp);		  	
@@ -117,8 +94,6 @@ void readTemp(){
 }
 
 void readTimeStamp(){
-	// char timestamp[12];
-
 	DateTime now = rtc.now(); //get the current date-time
 
 	String ts = String(now.year());
@@ -152,12 +127,11 @@ void readTimeStamp(){
 	}else{
 		ts += String(now.second());
 	}
-	ts.remove(0,2);	//remove 1st 2 data in ts
+	ts.remove(0,2);		//remove 1st 2 data in ts
 	// return(ts);	
 	// Serial.println(ts);
 	ts.toCharArray(Ctimestamp, 13);
 	// Serial.println(Ctimestamp);
-
 
   	if (DEBUG == 1) {Serial.print("Timestamp: ");}
   	if (DEBUG == 1) {Serial.println(Ctimestamp);}
