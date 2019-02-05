@@ -37,7 +37,7 @@ Adafruit_Si7021 sensor = Adafruit_Si7021();
 
 //constants
 char station_name[6] = "MADTA";
-char fixTempHum[19] = "*TP:20.43*HM:70.20";
+char fixTempHum[29] = "*TP:14.20*HM:99.00*PR:804.00";
 
 //---------------------------------------------------------
 BlueDot_BME280 bme280 = BlueDot_BME280();
