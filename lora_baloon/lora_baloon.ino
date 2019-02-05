@@ -6,12 +6,6 @@
 #include "BlueDot_BME280.h"
 #include <Adafruit_INA219.h>
 
-/* for feather m0  
-#define RFM95_CS 8
-#define RFM95_RST 4
-#define RFM95_INT 3
-*/
-
 // for teensy 3.2
 #define RFM95_CS 10
 #define RFM95_RST 9
@@ -27,8 +21,8 @@
 
 RH_RF95 rf95(RFM95_CS, RFM95_INT);    // Singleton instance of the radio driver
 
-char temp[DATALEN];   //lora
-uint8_t payload[RH_RF95_MAX_MESSAGE_LEN]; //store the data
+char temp[DATALEN];                 //lora
+uint8_t payload[RH_RF95_MAX_MESSAGE_LEN];     //store the data
 char dummy_data[DATALEN] = ">>MADTA*TP:25.43*HM:70.20*";
 
 Adafruit_INA219 ina219;
